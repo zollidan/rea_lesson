@@ -1,0 +1,13 @@
+[project]
+name = "rea-lesson"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "kagglehub>=1.0.1",
+    "matplotlib>=3.10.9",
+    "pandas>=3.0.3",
+    "seaborn>=0.13.2",
+    "ucimlrepo>=0.0.7",
+]
