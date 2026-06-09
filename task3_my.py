@@ -5,8 +5,9 @@ import seaborn as sns
 
 import kagglehub
 
-from sklearn.impute import SimpleImputer, MissingIndicator
-from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+from sklearn.impute import SimpleImputer
+from sklearn.preprocessing import StandardScaler
+
 
 def main():
     sns.set(style="ticks")
@@ -38,36 +39,18 @@ def main():
     total_count = data.shape[0]
     print("\nВсего строк: {}".format(total_count))
 
-
-    # первичная проверка пропусков
+    # Первичная проверка пропусков
     print("\nКолонки с пропущенными значениями:")
     missing_cols = data.columns[data.isnull().sum() > 0]
 
-    # количество и процент пропусков
     for col in missing_cols:
         null_count = data[col].isnull().sum()
         null_percent = round((null_count / total_count) * 100, 2)
         print("{}: {} пропусков, {}%".format(col, null_count, null_percent))
-    
-    # удалить колонки с пропусками
-    data_new_1 = data.dropna(axis=1, how="any")
-    # удалить строки с пропусками
-    data_new_2 = data.dropna(axis=0, how="any")
-    # заполнить заполнить все пропуски нулями
-    data_new_3 = data.fillna(0)
 
-    print("\nУдаление колонок с пропусками:")
-    print(data.shape, data_new_1.shape)
-
-    print("\nУдаление строк с пропусками:")
-    print(data.shape, data_new_2.shape)
-
-    print("\nЗаполнение всех пропусков нулями:")
-    print(data_new_3.head())
-
+    # Числовые колонки с пропусками
     num_cols = []
 
-    # список какие есть числовые пропуски
     print("\nЧисловые колонки с пропусками:")
     for col in data.columns:
         temp_null_count = data[col].isnull().sum()
@@ -80,10 +63,11 @@ def main():
                 col, dt, temp_null_count, temp_perc
             ))
 
-
     data_num = data[num_cols]
+
     print("\nЧисловые признаки с пропусками:")
     print(data_num.head())
+
     # Гистограмма Year
     plt.figure(figsize=(8, 5))
 
@@ -95,12 +79,11 @@ def main():
 
     plt.show()
 
-
+    # Гистограмма APPEARANCES без экстремальных выбросов
     plt.figure(figsize=(8, 5))
 
     appearances_data = data["APPEARANCES"].dropna()
 
-    # Берём только значения до 95-го процентиля
     x_max = appearances_data.quantile(0.95)
     appearances_filtered = appearances_data[appearances_data <= x_max]
 
@@ -112,41 +95,25 @@ def main():
 
     plt.show()
 
-    # выбор числового признака
+    # Обработка числового признака Year
     num_feature = "Year"
 
-    data_num_year = data[[num_feature]]
+    print("\nКоличество пропусков в Year до обработки:")
+    print(data[num_feature].isnull().sum())
 
-    # создание индикатора пропущеных значений
-    indicator = MissingIndicator()
-    mask_missing_values_only = indicator.fit_transform(data_num_year)
+    # Заполнение пропусков медианой
+    imp_num = SimpleImputer(strategy="median")
+    data[num_feature + "_imputed"] = imp_num.fit_transform(data[[num_feature]])
 
-    # список стратегии импьютации
-    # mean - средние 
-    # median - медиана
-    # most - самые частые
-    strategies = ["mean", "median", "most_frequent"]
-
-    print("\nИмпьютация числового признака Year:")
-
-    # для каждой стратегии делаю год
-    for strategy in strategies:
-        imp_num = SimpleImputer(strategy=strategy)
-        data_num_imp = imp_num.fit_transform(data_num_year)
-        print("\nСтратегия:", strategy)
-        print("Значения, которыми были заполнены пропуски:")
-        print(data_num_imp[mask_missing_values_only][:10])
-
-    imp_num_final = SimpleImputer(strategy="median")
-    data[num_feature + "_imputed"] = imp_num_final.fit_transform(data[[num_feature]])
-
-    print("\nПроверка пропусков после импьютации Year:")
+    print("\nКоличество пропусков в Year после обработки:")
     print(data[num_feature + "_imputed"].isnull().sum())
 
+    print("\nПервые значения Year после заполнения медианой:")
+    print(data[[num_feature, num_feature + "_imputed"]].head())
+
+    # Категориальные колонки с пропусками
     cat_cols = []
 
-    # Категориальный признак — текстовая категория.
-    # заполнение значениями по категориям
     print("\nКатегориальные колонки с пропусками:")
     for col in data.columns:
         temp_null_count = data[col].isnull().sum()
@@ -159,77 +126,50 @@ def main():
                 col, dt, temp_null_count, temp_perc
             ))
 
+    # Обработка категориального признака ALIGN
     cat_feature = "ALIGN"
 
-    cat_temp_data = data[[cat_feature]]
+    print("\nУникальные значения ALIGN до обработки:")
+    print(data[cat_feature].unique())
 
-    print("\nУникальные значения категориального признака до обработки:")
-    print(cat_temp_data[cat_feature].unique())
+    print("\nКоличество пропусков в ALIGN до обработки:")
+    print(data[cat_feature].isnull().sum())
 
-    print("\nКоличество пропусков в ALIGN:")
-    print(cat_temp_data[cat_feature].isnull().sum())
+    # Заполнение пропусков отдельной категорией Unknown
+    imp_cat = SimpleImputer(
+        missing_values=np.nan,
+        strategy="constant",
+        fill_value="Unknown"
+    )
 
-    imp_cat_most_frequent = SimpleImputer(missing_values=np.nan, strategy="most_frequent")
-    data_imp_most_frequent = imp_cat_most_frequent.fit_transform(cat_temp_data)
+    data[cat_feature + "_imputed"] = imp_cat.fit_transform(data[[cat_feature]]).ravel()
 
-    print("\nИмпьютация ALIGN наиболее частым значением:")
-    print(np.unique(data_imp_most_frequent))
+    print("\nУникальные значения ALIGN после обработки:")
+    print(data[cat_feature + "_imputed"].unique())
 
-    imp_cat_constant = SimpleImputer(missing_values=np.nan, strategy="constant", fill_value="Unknown")
-    data_imp_constant = imp_cat_constant.fit_transform(cat_temp_data)
-
-    print("\nИмпьютация ALIGN константой Unknown:")
-    print(np.unique(data_imp_constant))
+    print("\nКоличество пропусков в ALIGN после обработки:")
+    print(data[cat_feature + "_imputed"].isnull().sum())
 
     print("\nКоличество значений Unknown:")
-    print((data_imp_constant == "Unknown").sum())
+    print((data[cat_feature + "_imputed"] == "Unknown").sum())
 
-    data[cat_feature + "_imputed"] = data_imp_constant.ravel()
-
+    # One-Hot Encoding для ALIGN
     cat_enc = pd.DataFrame({
         "ALIGN": data[cat_feature + "_imputed"]
     })
 
-    print("\nДанные для кодирования:")
-    print(cat_enc.head())
-
-    # LabelEncoder — переводит категорию в число.
-    le = LabelEncoder()
-    cat_enc_le = le.fit_transform(cat_enc["ALIGN"])
-
-    print("\nКлассы LabelEncoder:")
-    print(le.classes_)
-
-    print("\nПервые 10 значений после Label Encoding:")
-    print(cat_enc_le[:10])
-
-    print("\nУникальные значения после Label Encoding:")
-    print(np.unique(cat_enc_le))
-
-    data[cat_feature + "_label_encoded"] = cat_enc_le
-
-    # One-Hot Encoding — делает отдельную колонку для каждой категории.
-    ohe = OneHotEncoder()
-    cat_enc_ohe = ohe.fit_transform(cat_enc[["ALIGN"]])
-
-    print("\nРазмер до One-Hot Encoding:")
-    print(cat_enc.shape)
-
-    print("\nРазмер после One-Hot Encoding:")
-    print(cat_enc_ohe.shape)
-
-    print("\nПервые 10 строк One-Hot Encoding:")
-    print(cat_enc_ohe.todense()[0:10])
-
     cat_dummies = pd.get_dummies(cat_enc)
 
-    print("\nOne-Hot Encoding через pandas get_dummies:")
+    print("\nOne-Hot Encoding для ALIGN:")
     print(cat_dummies.head())
 
+    print("\nРазмер после One-Hot Encoding:")
+    print(cat_dummies.shape)
 
+    # Итоговый датасет
     data_result = pd.concat(
         [
-            data[["name", num_feature + "_imputed", cat_feature + "_imputed", cat_feature + "_label_encoded"]],
+            data[["name", num_feature + "_imputed", cat_feature + "_imputed"]],
             cat_dummies
         ],
         axis=1
@@ -241,12 +181,15 @@ def main():
     print("\nПроверка пропусков в итоговом датасете:")
     print(data_result.isnull().sum())
 
-    # StandardScaler — приводит числовой признак к нормальному масштабу.
+    # Масштабирование числового признака Year
     scaler = StandardScaler()
-    data_result[num_feature + "_scaled"] = scaler.fit_transform(data_result[[num_feature + "_imputed"]])
+    data_result[num_feature + "_scaled"] = scaler.fit_transform(
+        data_result[[num_feature + "_imputed"]]
+    )
 
     print("\nМасштабированный числовой признак:")
     print(data_result[[num_feature + "_imputed", num_feature + "_scaled"]].head())
 
-if __name__ == "__main__": 
+
+if __name__ == "__main__":
     main()
